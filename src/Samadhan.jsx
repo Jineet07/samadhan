@@ -104,7 +104,7 @@ const centroid = (pts) => {
 const REGION_BY_ID = Object.fromEntries(REGIONS.map((r) => [r.id, r]));
 
 const UNIVERSITIES = [
-  { id: "u1", name: "IIT Gandhinagar", region: "GJ", district: "Gandhinagar", depts: ["Civil", "Computer Science", "Earth Sciences", "Materials"], expertise: ["Water Resources Engineering", "IoT Sensing", "Machine Learning", "Hydrogeology", "Materials Science"], labs: ["Water & Climate Lab", "Sensing Systems Lab"], patents: 34, projects: 12, priorSocietal: 9 },
+  { id: "u1", name: "PDEU, Gandhinagar", region: "GJ", district: "Gandhinagar", depts: ["Civil", "Computer Science", "Earth Sciences", "Materials"], expertise: ["Water Resources Engineering", "IoT Sensing", "Machine Learning", "Hydrogeology", "Materials Science"], labs: ["Water & Climate Lab", "Sensing Systems Lab"], patents: 34, projects: 12, priorSocietal: 9 },
   { id: "u2", name: "Nirma University, Ahmedabad", region: "GJ", district: "Ahmedabad", depts: ["Civil", "Chemical", "Instrumentation"], expertise: ["Environmental Engineering", "Chemical Engineering", "Water Resources Engineering", "Circular Economy"], labs: ["Environmental Process Lab"], patents: 11, projects: 8, priorSocietal: 6 },
   { id: "u3", name: "SVNIT Surat", region: "GJ", district: "Surat", depts: ["Civil", "Mechanical", "Electrical"], expertise: ["Water Resources Engineering", "Civil Engineering", "Renewable Energy", "GIS"], labs: ["Hydraulics Lab", "Solar Test Bed"], patents: 7, projects: 10, priorSocietal: 7 },
   { id: "u4", name: "Anna University, Chennai", region: "TN", district: "Chennai", depts: ["Civil", "CSE", "Environmental"], expertise: ["Urban Planning", "Computer Vision", "Environmental Engineering", "Transportation Planning"], labs: ["Urban Mobility Lab"], patents: 22, projects: 15, priorSocietal: 11 },
@@ -517,8 +517,8 @@ function DemoGuide({ done, open, setOpen }) {
 const ROLES = [
   { id: "citizen", label: "Citizen", icon: Users, org: "Resident, Banaskantha" },
   { id: "admin", label: "Government Validator", icon: ShieldCheck, org: "District Innovation Cell" },
-  { id: "faculty", label: "Faculty / University", icon: GraduationCap, org: "IIT Gandhinagar" },
-  { id: "student", label: "Student", icon: Users, org: "IIT Gandhinagar" },
+  { id: "faculty", label: "Faculty / University", icon: GraduationCap, org: "PDEU" },
+  { id: "student", label: "Student", icon: Users, org: "PDEU" },
   { id: "industry", label: "Industry Partner", icon: Factory, org: "Waterfield Technologies" },
 ];
 
@@ -1363,9 +1363,9 @@ function ChallengeDetail({ challenges, openId, go, projectFor, role, updateChall
             const pr = seedProject(c, "u1", { faculty: "Dr. Anjali Mehta" });
             setProjects((ps) => [...ps, pr]);
             updateChallenge(c.id, { status: "Assigned", projectId: pr.id, assignedUni: "u1" });
-            notify("IIT Gandhinagar accepted the challenge"); tick(9);
+            notify("PDEU accepted the challenge"); tick(9);
             go("project", { pid: pr.id });
-          }}><GraduationCap size={15} /> Accept on behalf of IIT Gandhinagar</Btn>
+          }}><GraduationCap size={15} /> Accept on behalf of PDEU</Btn>
         </Card>
       )}
     </div>
