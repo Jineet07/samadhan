@@ -515,7 +515,7 @@ function DemoGuide({ done, open, setOpen }) {
 /* ================================== APP ================================== */
 
 const ROLES = [
-  { id: "citizen", label: "Citizen", icon: Users, org: "Resident, Banaskantha" },
+  { id: "citizen", label: "Citizen", icon: Users, org: "Resident, Raysan, Gandhinagar" },
   { id: "admin", label: "Government Validator", icon: ShieldCheck, org: "District Innovation Cell" },
   { id: "faculty", label: "Faculty / University", icon: GraduationCap, org: "PDEU" },
   { id: "student", label: "Student", icon: Users, org: "PDEU" },
