@@ -191,6 +191,76 @@ const buildSeedChallenge = (row) => {
   };
 };
 
+
+
+/* --------------------------- GPS location capture ------------------------- */
+// Approximate district centres, used only to suggest a region and district from
+// a detected fix. The raw coordinates are always what gets stored.
+const DISTRICT_COORDS = {
+  Gandhinagar: [23.2156, 72.6369], Kalol: [23.2450, 72.4900], Dehgam: [23.1700, 72.8200],
+  Mansa: [23.4300, 72.6600], Ahmedabad: [23.0225, 72.5714], Banaskantha: [24.1722, 72.4344],
+  Surat: [21.1702, 72.8311],
+  Dehradun: [30.3165, 78.0322], Shimla: [31.1048, 77.1734], Nainital: [29.3919, 79.4542],
+  Ludhiana: [30.9010, 75.8573], Hisar: [29.1492, 75.7217], Karnal: [29.6857, 76.9905],
+  Barmer: [25.7521, 71.3967], Jaisalmer: [26.9157, 70.9083], Jaipur: [26.9124, 75.7873], Alwar: [27.5530, 76.6346],
+  Lucknow: [26.8467, 80.9462], Varanasi: [25.3176, 82.9739], Gorakhpur: [26.7606, 83.3732], Agra: [27.1767, 78.0081],
+  Patna: [25.5941, 85.1376], Muzaffarpur: [26.1209, 85.3647], Ranchi: [23.3441, 85.3096],
+  Kolkata: [22.5726, 88.3639], Jalpaiguri: [26.5435, 88.7196], Guwahati: [26.1445, 91.7362],
+  Bhopal: [23.2599, 77.4126], Indore: [22.7196, 75.8577], Raipur: [21.2514, 81.6296], Bastar: [19.0748, 82.0298],
+  Pune: [18.5204, 73.8567], Nagpur: [21.1458, 79.0882], Nashik: [19.9975, 73.7898],
+  "Mumbai Suburban": [19.0760, 72.8777],
+  Puri: [19.8135, 85.8312], Cuttack: [20.4625, 85.8830], Koraput: [18.8120, 82.7105],
+  Hyderabad: [17.3850, 78.4867], Guntur: [16.3067, 80.4365], Warangal: [17.9689, 79.5941],
+  "Bengaluru Rural": [13.2846, 77.5730], Belagavi: [15.8497, 74.4977], Kalaburagi: [17.3297, 76.8343],
+  Chennai: [13.0827, 80.2707], Madurai: [9.9252, 78.1198], Coimbatore: [11.0168, 76.9558],
+  Alappuzha: [9.4981, 76.3388], Wayanad: [11.6854, 76.1320], Kochi: [9.9312, 76.2673],
+};
+
+const REGION_OF_DISTRICT = {};
+REGIONS.forEach((r) => r.districts.forEach((d) => { REGION_OF_DISTRICT[d] = r.id; }));
+
+// Great-circle distance in km.
+const haversine = (a, b, c, d) => {
+  const R = 6371, rad = (x) => (x * Math.PI) / 180;
+  const dLat = rad(c - a), dLon = rad(d - b);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a)) * Math.cos(rad(c)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+
+// Nearest known district, but only trusted within 80 km. Beyond that we keep the
+// coordinates and let the citizen choose the district themselves.
+const districtFromFix = (lat, lon) => {
+  let best = null, bestKm = Infinity;
+  for (const [name, [dLat, dLon]] of Object.entries(DISTRICT_COORDS)) {
+    const km = haversine(lat, lon, dLat, dLon);
+    if (km < bestKm) { bestKm = km; best = name; }
+  }
+  return bestKm <= 80 ? { district: best, region: REGION_OF_DISTRICT[best], km: Math.round(bestKm) } : null;
+};
+
+/* --------------------------- image evidence helper ------------------------ */
+// Phone photos are 3-5 MB and base64 inflates them by a third, which would blow
+// past the storage cap after two uploads. Downscale to 1000px and re-encode.
+const readImageFile = (file, maxPx = 1000, quality = 0.7) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode failed"));
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve({ type: "image", name: file.name, url: cv.toDataURL("image/jpeg", quality) });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
 /* ------------------------------ AI: offline ------------------------------ */
 
 const tokenize = (s) => (s || "").toLowerCase().match(/[a-z]{4,}/g) || [];
@@ -732,8 +802,10 @@ function AuthorityAlert({ challenge, onReview, onDismiss }) {
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Reported by</p>
-              <p className="mt-0.5 text-sm font-medium text-slate-800">Citizen</p>
+              <p className="text-xs text-slate-500">GPS fix</p>
+              <p className="mt-0.5 text-sm font-medium text-slate-800">
+                {c.gps ? `${c.gps.lat.toFixed(3)}, ${c.gps.lon.toFixed(3)}` : "Not captured"}
+              </p>
             </div>
           </div>
         </div>
@@ -979,13 +1051,53 @@ function Landing({ go, challenges, projects }) {
 function SubmitChallenge({ challenges, setChallenges, notify, tick, go, raiseAlert }) {
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [geoError, setGeoError] = useState("");
+  const fileRef = useRef(null);
   const [result, setResult] = useState(null);
   const [f, setF] = useState({
     title: "", description: "", sector: "auto", subSector: "", region: "", district: "",
     affected: "", severity: 4, urgency: 4, expectedOutcome: "", priorAttempts: "",
-    evidence: [], sdgs: [],
+    evidence: [], sdgs: [], gps: null,
   });
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+
+  const detectLocation = () => {
+    setGeoError("");
+    if (!navigator.geolocation) {
+      setGeoError("This browser does not support location detection. Pick the region on the map instead.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+        const guess = districtFromFix(lat, lon);
+        setF((x) => ({
+          ...x,
+          gps: { lat, lon, accuracy, at: new Date().toISOString() },
+          region: guess ? guess.region : x.region,
+          district: guess ? guess.district : x.district,
+        }));
+        setLocating(false);
+        notify(guess
+          ? `Location captured. Nearest district: ${guess.district}.`
+          : "Location captured. Choose the district on the map.");
+      },
+      (err) => {
+        setLocating(false);
+        setGeoError(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission was denied. Allow it in your browser settings, or pick the region on the map."
+            : err.code === err.POSITION_UNAVAILABLE
+            ? "No location fix available right now. Try again outdoors, or pick the region on the map."
+            : "Location request timed out. Try again, or pick the region on the map."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   const fillDemo = () => {
     setF({
@@ -1083,6 +1195,41 @@ function SubmitChallenge({ challenges, setChallenges, notify, tick, go, raiseAle
           <Card className="p-5">
             <h3 className="mb-3 text-sm font-semibold">Pin the location</h3>
             <p className="mb-2 text-xs text-slate-500">Tap a state, then choose the district.</p>
+            <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-800">Exact location</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Detect the GPS coordinates of where the problem is, or pick the region below.
+                  </p>
+                </div>
+                <Btn size="sm" variant={f.gps ? "outline" : "primary"} disabled={locating} onClick={detectLocation}>
+                  {locating
+                    ? <><Loader2 size={12} className="animate-spin" /> Locating</>
+                    : <><MapPin size={12} /> {f.gps ? "Detect again" : "Use my location"}</>}
+                </Btn>
+              </div>
+
+              {f.gps && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg bg-white px-3 py-2.5 text-xs">
+                  <span className="flex items-center gap-1.5 font-medium text-emerald-700">
+                    <Check size={13} /> Location captured
+                  </span>
+                  <span className="text-slate-600">
+                    {f.gps.lat.toFixed(5)}, {f.gps.lon.toFixed(5)}
+                  </span>
+                  <span className="text-slate-500">Accurate to about {Math.round(f.gps.accuracy)} m</span>
+                  <button onClick={() => { set("gps", null); setGeoError(""); }}
+                    className="ml-auto text-slate-400 hover:text-red-600">Clear</button>
+                </div>
+              )}
+
+              {geoError && (
+                <p className="mt-2.5 flex items-start gap-1.5 text-xs text-red-600">
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />{geoError}
+                </p>
+              )}
+            </div>
             <IndiaMap mode="pick" selected={f.region} onSelect={(r) => { set("region", r); set("district", ""); }} height={320} />
             {f.region && (
               <div className="mt-3 space-y-3">
@@ -1105,9 +1252,31 @@ function SubmitChallenge({ challenges, setChallenges, notify, tick, go, raiseAle
             <h3 className="mb-3 text-sm font-semibold">Evidence</h3>
             <div className="rounded-lg border-2 border-dashed border-slate-200 p-6 text-center">
               <Upload size={20} className="mx-auto mb-2 text-slate-400" />
-              <p className="text-sm text-slate-600">Photos, video, audio statements or documents</p>
+              <p className="text-sm text-slate-600">Attach your own photos of the problem</p>
+              <p className="mt-1 text-xs text-slate-500">JPG or PNG, several at a time. Resized automatically.</p>
+              <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+                onChange={async (e) => {
+                  const files = [...(e.target.files || [])];
+                  e.target.value = "";
+                  if (!files.length) return;
+                  setUploading(true);
+                  try {
+                    const shots = [];
+                    for (const file of files) {
+                      try { shots.push(await readImageFile(file)); }
+                      catch { notify(`Could not read ${file.name}`, "rose"); }
+                    }
+                    if (shots.length) {
+                      setF((x) => ({ ...x, evidence: [...x.evidence, ...shots] }));
+                      notify(`${shots.length} photo${shots.length > 1 ? "s" : ""} attached`);
+                    }
+                  } finally { setUploading(false); }
+                }} />
               <div className="mt-3 flex flex-wrap justify-center gap-2">
-                {[["image", "site-photo.jpg"], ["video", "walkthrough.mp4"], ["audio", "resident-statement.m4a"], ["doc", "panchayat-letter.pdf"]].map(([t, n]) => (
+                <Btn size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                  {uploading ? <><Loader2 size={12} className="animate-spin" /> Processing</> : <><Upload size={12} /> Choose photos</>}
+                </Btn>
+                {[["video", "walkthrough.mp4"], ["audio", "resident-statement.m4a"], ["doc", "panchayat-letter.pdf"]].map(([t, n]) => (
                   <Btn key={t} size="sm" variant="outline" onClick={() => { set("evidence", [...f.evidence, { type: t, name: n }]); notify(`${n} attached`); }}>
                     <Plus size={12} /> {t}
                   </Btn>
@@ -1118,7 +1287,10 @@ function SubmitChallenge({ challenges, setChallenges, notify, tick, go, raiseAle
               <ul className="mt-3 space-y-1.5">
                 {f.evidence.map((e, i) => (
                   <li key={i} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
-                    <FileText size={13} className="text-slate-400" /><span className="flex-1">{e.name}</span>
+                    {e.url
+                      ? <img src={e.url} alt={e.name} className="h-9 w-9 shrink-0 rounded object-cover" />
+                      : <FileText size={13} className="text-slate-400" />}
+                    <span className="flex-1 truncate">{e.name}</span>
                     <button onClick={() => set("evidence", f.evidence.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-600"><X size={12} /></button>
                   </li>
                 ))}
@@ -1149,6 +1321,7 @@ function SubmitChallenge({ challenges, setChallenges, notify, tick, go, raiseAle
               ["Sector", f.sector === "auto" ? "Automatic" : f.sector], ["People affected", Number(f.affected).toLocaleString("en-IN")],
               ["Severity", `${f.severity}/5`], ["Urgency", `${f.urgency}/5`],
               ["Evidence", `${f.evidence.length} file(s)`], ["SDGs", f.sdgs.join(", ") || "Automatic"],
+              ["GPS", f.gps ? `${f.gps.lat.toFixed(5)}, ${f.gps.lon.toFixed(5)} (±${Math.round(f.gps.accuracy)} m)` : "Not captured"],
             ].map(([k, v]) => (
               <div key={k}><dt className="text-xs text-slate-500">{k}</dt><dd className="text-sm font-medium text-slate-900">{v || "—"}</dd></div>
             ))}
@@ -1416,8 +1589,28 @@ function ChallengeDetail({ challenges, openId, go, projectFor, role, updateChall
               <span className="flex items-center gap-1"><MapPin size={12} />{c.district}, {REGION_BY_ID[c.region]?.name}</span>
               <span className="flex items-center gap-1"><Users size={12} />{c.affected.toLocaleString("en-IN")} affected</span>
               <span className="flex items-center gap-1"><Clock size={12} />Reported {c.submittedAt}</span>
+              {c.gps && (
+                <a href={`https://www.google.com/maps/search/?api=1&query=${c.gps.lat},${c.gps.lon}`}
+                  target="_blank" rel="noreferrer"
+                  className="flex items-center gap-1 font-medium text-indigo-600 hover:underline">
+                  <MapPin size={12} />GPS {c.gps.lat.toFixed(5)}, {c.gps.lon.toFixed(5)}
+                </a>
+              )}
               <span className="flex items-center gap-1"><FileText size={12} />{(c.evidence || []).length} evidence file(s)</span>
             </div>
+            {(c.evidence || []).some((e) => e.url) && (
+              <div className="mt-3.5">
+                <p className="mb-1.5 text-xs font-medium text-slate-500">Photos submitted by the citizen</p>
+                <div className="flex flex-wrap gap-2">
+                  {(c.evidence || []).filter((e) => e.url).map((e, i) => (
+                    <a key={i} href={e.url} target="_blank" rel="noreferrer" title={e.name}
+                      className="block overflow-hidden rounded-lg border border-slate-200 hover:border-indigo-400">
+                      <img src={e.url} alt={e.name} className="h-24 w-32 object-cover" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             {role.id === "admin" && c.status === "Under Validation" && (
