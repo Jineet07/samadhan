@@ -84,7 +84,7 @@ const REGIONS = [
   { id: "NR", name: "Uttarakhand & HP", pts: "120,25 165,18 190,40 175,70 140,78 108,62", districts: ["Dehradun", "Shimla", "Nainital"] },
   { id: "PB", name: "Punjab & Haryana", pts: "108,62 140,78 148,105 118,112 100,90", districts: ["Ludhiana", "Hisar", "Karnal"] },
   { id: "RJ", name: "Rajasthan", pts: "100,90 118,112 142,120 138,168 92,178 55,140 62,105", districts: ["Barmer", "Jaisalmer", "Jaipur", "Alwar"] },
-  { id: "GJ", name: "Gujarat", pts: "92,178 138,168 132,205 108,238 62,232 38,200 55,178", districts: ["Kutch", "Banaskantha", "Ahmedabad", "Surat", "Valsad", "Rajkot", "Gandhinagar"] },
+  { id: "GJ", name: "Gujarat", pts: "92,178 138,168 132,205 108,238 62,232 38,200 55,178", districts: ["Gandhinagar", "Kalol", "Dehgam", "Mansa", "Ahmedabad", "Banaskantha", "Surat"] },
   { id: "UP", name: "Uttar Pradesh", pts: "148,105 190,95 232,112 228,150 176,158 142,120", districts: ["Lucknow", "Varanasi", "Gorakhpur", "Agra"] },
   { id: "BR", name: "Bihar & Jharkhand", pts: "232,112 268,120 282,155 258,190 222,178 228,150", districts: ["Patna", "Muzaffarpur", "Ranchi"] },
   { id: "WB", name: "West Bengal & NE", pts: "282,155 300,128 345,120 382,140 370,175 330,190 300,200 288,180", districts: ["Kolkata", "Jalpaiguri", "Guwahati"] },
@@ -104,11 +104,11 @@ const centroid = (pts) => {
 const REGION_BY_ID = Object.fromEntries(REGIONS.map((r) => [r.id, r]));
 
 const UNIVERSITIES = [
-  { id: "u1", name: "IIT Gandhinagar", region: "GJ", district: "Gandhinagar", depts: ["Civil", "Computer Science", "Earth Sciences", "Materials"], expertise: ["Water Resources Engineering", "IoT Sensing", "Machine Learning", "Hydrogeology", "Materials Science"], labs: ["Water & Climate Lab", "Sensing Systems Lab"], patents: 34, projects: 12, priorSocietal: 9 },
+  { id: "u1", name: "PDEU, Gandhinagar", region: "GJ", district: "Gandhinagar", depts: ["Civil", "Computer Science", "Earth Sciences", "Materials"], expertise: ["Water Resources Engineering", "IoT Sensing", "Machine Learning", "Hydrogeology", "Materials Science"], labs: ["Water & Climate Lab", "Sensing Systems Lab"], patents: 34, projects: 12, priorSocietal: 9 },
   { id: "u2", name: "Nirma University, Ahmedabad", region: "GJ", district: "Ahmedabad", depts: ["Civil", "Chemical", "Instrumentation"], expertise: ["Environmental Engineering", "Chemical Engineering", "Water Resources Engineering", "Circular Economy"], labs: ["Environmental Process Lab"], patents: 11, projects: 8, priorSocietal: 6 },
   { id: "u3", name: "SVNIT Surat", region: "GJ", district: "Surat", depts: ["Civil", "Mechanical", "Electrical"], expertise: ["Water Resources Engineering", "Civil Engineering", "Renewable Energy", "GIS"], labs: ["Hydraulics Lab", "Solar Test Bed"], patents: 7, projects: 10, priorSocietal: 7 },
-  { id: "u4", name: "Anna University, Chennai", region: "TN", district: "Chennai", depts: ["Civil", "CSE", "Environmental"], expertise: ["Urban Planning", "Computer Vision", "Environmental Engineering", "Transportation Planning"], labs: ["Urban Mobility Lab"], patents: 22, projects: 15, priorSocietal: 11 },
-  { id: "u5", name: "COEP Technological University, Pune", region: "MH", district: "Pune", depts: ["Mechanical", "Electrical", "Metallurgy"], expertise: ["Energy Storage", "Power Systems", "Embedded Systems", "Renewable Energy"], labs: ["Microgrid Lab"], patents: 15, projects: 9, priorSocietal: 5 },
+  { id: "u4", name: "DA-IICT, Gandhinagar", region: "GJ", district: "Gandhinagar", depts: ["Civil", "CSE", "Environmental"], expertise: ["Urban Planning", "Computer Vision", "Environmental Engineering", "Transportation Planning"], labs: ["Urban Mobility Lab"], patents: 22, projects: 15, priorSocietal: 11 },
+  { id: "u5", name: "IITRAM, Ahmedabad", region: "GJ", district: "Ahmedabad", depts: ["Mechanical", "Electrical", "Metallurgy"], expertise: ["Energy Storage", "Power Systems", "Embedded Systems", "Renewable Energy"], labs: ["Microgrid Lab"], patents: 15, projects: 9, priorSocietal: 5 },
 ];
 
 const PARTNERS = [
@@ -148,7 +148,9 @@ const STUDENT_NAMES = [
   ["Dev Chaudhary", "Mechanical Engineering"], ["Lakshmi Rao", "Urban Planning"],
 ];
 const STUDENTS = STUDENT_NAMES.map(([name, dept], i) => ({
-  id: "s" + (i + 1), name, dept, uni: UNIVERSITIES[i % 5].id, year: 2 + (i % 3),
+  id: "s" + (i + 1), name, dept,
+  uni: i < 8 ? UNIVERSITIES[0].id : UNIVERSITIES[1 + ((i - 8) % 4)].id,
+  year: 2 + (i % 3),
 }));
 
 let uid = 100;
@@ -157,21 +159,21 @@ const nextId = () => "c" + ++uid;
 const daysAgo = (d) => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10);
 
 const SEED_CHALLENGES = [
-  ["Borewells running dry across 14 villages", "Groundwater in the taluka has dropped past 250 metres. Fourteen villages now depend on tanker supply for four months a year. Households, mostly women, spend three to four hours a day fetching drinking water.", "Water", "GJ", "Banaskantha", 18400, 5, 5, 34],
-  ["Paddy stubble burning after every harvest", "Farmers burn crop residue because no collection route exists and machinery rental is unaffordable. Air quality collapses for six weeks each year.", "Agriculture", "PB", "Ludhiana", 240000, 4, 4, 21],
-  ["Junction congestion on the ring road corridor", "Signal timing is fixed and does not respond to actual flow. Peak commute has grown from 25 to 70 minutes over three years.", "Transportation", "TN", "Chennai", 410000, 3, 4, 45],
-  ["Plastic waste choking the creek", "Unsegregated municipal waste enters the creek at four points. No recovery system exists downstream and the fishing community reports falling catch.", "Waste Management", "MH", "Mumbai Suburban", 96000, 4, 4, 60],
-  ["No doctor within 40 km of the tribal block", "The primary health centre has been unstaffed for eleven months. Emergency cases travel 40 km on unpaved road.", "Healthcare", "MP", "Bastar", 27000, 5, 5, 28],
-  ["Village grid fails 9 hours a day", "Feeder is at the tail end of the distribution network. Voltage is too low to run irrigation pumps and shopfront refrigeration.", "Energy", "RJ", "Barmer", 12200, 4, 3, 52],
-  ["No flood warning before the river crests", "The river rises in under six hours after upstream rain. Warning currently travels by phone call and reaches the last hamlet after water does.", "Public Safety", "BR", "Muzaffarpur", 68000, 5, 5, 18],
-  ["Girls dropping out after class 8", "The nearest secondary school is 11 km away with no safe transport. Dropout among girls reached 38 percent last year.", "Education", "UP", "Gorakhpur", 4300, 4, 3, 70],
-  ["Dyeing unit effluent entering farmland", "Untreated effluent from small textile units reaches irrigation channels. Soil salinity has risen and two crop cycles have failed.", "Environment", "GJ", "Surat", 31000, 5, 4, 40],
-  ["Bus stops unusable for wheelchair users", "None of the 60 stops on the corridor have level boarding. Wheelchair users are effectively excluded from public transport.", "Accessibility", "KA", "Bengaluru Rural", 8900, 3, 2, 85],
-  ["Land record corrections take 14 months", "Every mutation request moves on paper between three offices. Farmers cannot access credit while the record is disputed.", "Digital Governance", "MH", "Nashik", 52000, 3, 3, 95],
-  ["Heat deaths rising in the old city wards", "Dense low-rise housing with metal roofing crosses 46°C indoors. Three wards recorded 19 heat deaths last summer.", "Climate", "GJ", "Ahmedabad", 74000, 5, 4, 26],
-  ["Sewage discharged into the lake untreated", "The ward's treatment plant was designed for a third of the current load. Overflow reaches the lake daily.", "Water", "WB", "Kolkata", 130000, 4, 4, 55],
-  ["Weaver cooperatives losing income to middlemen", "Handloom weavers sell at 40 percent of retail with no direct market access and no digital catalogue.", "Employment", "OD", "Cuttack", 3100, 3, 2, 78],
-  ["Street lighting absent on the school route", "Two kilometres of the route to the girls' school have no lighting. Attendance in winter months drops sharply.", "Public Safety", "AP", "Warangal", 2600, 3, 3, 62],
+  ["Raysan lake recharge has collapsed", "The village tank that once recharged Raysan's shallow aquifer now holds water for six weeks after monsoon instead of five months. Inflow channels are blocked by plot development and four borewells in the ward have gone dry.", "Water", "GJ", "Gandhinagar", 9400, 5, 5, 12],
+  ["Construction debris dumped on Kudasan plots", "Vacant plots between Kudasan and Sargasan receive nightly debris tipping. No recovery or segregation route exists and monsoon runoff carries fines into the stormwater drains.", "Waste Management", "GJ", "Gandhinagar", 21000, 4, 4, 26],
+  ["Sargasan junction backs up through peak hours", "Fixed signal timing on the Sargasan approach does not respond to actual flow. The morning run from Raysan to Sector 21 has grown from 12 to 34 minutes in three years.", "Transportation", "GJ", "Gandhinagar", 47000, 3, 4, 38],
+  ["Randesan streets flood within an hour of heavy rain", "Stormwater drains were laid for the earlier plot density. New construction has cut infiltration and three internal roads become impassable after 40 mm of rain.", "Urban Development", "GJ", "Gandhinagar", 16500, 4, 4, 20],
+  ["Sewage reaching the Adalaj stepwell catchment", "Untreated discharge from unconnected housing enters the drainage line upstream of the heritage stepwell. Water quality at the site has been flagged twice this year.", "Environment", "GJ", "Gandhinagar", 12800, 5, 4, 44],
+  ["Pethapur block printing artisans losing market access", "Traditional block carving and printing families sell through intermediaries at a third of retail. No digital catalogue or direct channel exists and the craft is down to fourteen households.", "Employment", "GJ", "Gandhinagar", 900, 4, 3, 61],
+  ["Uvarsad canal tail-enders get water last", "Farmers at the tail of the branch canal receive water after the rotation ends. Two of four irrigation cycles failed last season and borewell dependence has risen sharply.", "Agriculture", "GJ", "Gandhinagar", 5600, 4, 4, 33],
+  ["Sector 21 bus stops unusable for wheelchair users", "None of the stops on the Sector 21 to Infocity corridor have level boarding. Wheelchair users are effectively excluded from the city bus network.", "Accessibility", "GJ", "Gandhinagar", 8200, 3, 2, 72],
+  ["Air quality falling across the Chhatral industrial belt", "Particulate levels near the Chhatral and Kalol units cross safe limits through winter. There is no local monitoring, so residents have no warning and no evidence base.", "Climate", "GJ", "Kalol", 38000, 5, 4, 29],
+  ["Land record mutations take 14 months in Kalol", "Every mutation request moves on paper between three offices. Farmers cannot access crop credit while the record sits disputed.", "Digital Governance", "GJ", "Kalol", 24000, 3, 3, 88],
+  ["Girls dropping out after class 8 in Borisana", "The nearest secondary school is 9 km away with no safe transport on the route. Dropout among girls reached 31 percent last year.", "Education", "GJ", "Kalol", 2100, 4, 3, 66],
+  ["Dehgam health centre unstaffed for eleven months", "The primary health centre serving the taluka has had no resident medical officer since last year. Emergency and maternity cases travel 28 km to Gandhinagar civil hospital.", "Healthcare", "GJ", "Dehgam", 34000, 5, 5, 30],
+  ["No street lighting on the Rakhial school route", "Two kilometres of the walking route to the girls' school have no lighting. Winter attendance drops sharply and parents report safety as the reason.", "Public Safety", "GJ", "Dehgam", 2600, 3, 3, 57],
+  ["Mansa feeder fails through the irrigation season", "The rural feeder sits at the tail of the distribution network. Voltage drops below the level needed to run irrigation pumps for six to nine hours on peak days.", "Energy", "GJ", "Mansa", 11200, 4, 3, 55],
+  ["Charada milk collection has no cold chain", "The village collection centre has no chilling unit. Evening milk travels 40 minutes unrefrigerated and rejection at the dairy runs near 12 percent through summer.", "Rural Development", "GJ", "Mansa", 3400, 4, 4, 41],
 ];
 
 const buildSeedChallenge = (row) => {
@@ -515,10 +517,10 @@ function DemoGuide({ done, open, setOpen }) {
 /* ================================== APP ================================== */
 
 const ROLES = [
-  { id: "citizen", label: "Citizen", icon: Users, org: "Resident, Banaskantha" },
-  { id: "admin", label: "Government Validator", icon: ShieldCheck, org: "District Innovation Cell" },
-  { id: "faculty", label: "Faculty / University", icon: GraduationCap, org: "IIT Gandhinagar" },
-  { id: "student", label: "Student", icon: Users, org: "IIT Gandhinagar" },
+  { id: "citizen", label: "Citizen", icon: Users, org: "Resident, Raysan, Gandhinagar" },
+  { id: "admin", label: "Government Validator", icon: ShieldCheck, org: "Gandhinagar District Validation Cell" },
+  { id: "faculty", label: "Faculty / University", icon: GraduationCap, org: "PDEU" },
+  { id: "student", label: "Student", icon: Users, org: "PDEU" },
   { id: "industry", label: "Industry Partner", icon: Factory, org: "Waterfield Technologies" },
 ];
 
@@ -526,21 +528,26 @@ const buildSeedProjects = (cs) => {
       const seedRefs = [cs[2], cs[3], cs[5], cs[8], cs[11], cs[9], cs[13], cs[14]];
       const built = [];
       const configs = [
-        { stage: "Pilot", uni: "u4", partner: "p8", budget: 1800000 },
-        { stage: "Testing", uni: "u5", partner: "p7", budget: 900000 },
-        { stage: "Prototype", uni: "u3", partner: "p1", budget: 1200000 },
+        { stage: "Pilot", uni: "u1", partner: "p8", budget: 1800000 },
+        { stage: "Testing", uni: "u3", partner: "p7", budget: 900000 },
+        { stage: "Prototype", uni: "u1", partner: "p1", budget: 1200000 },
         { stage: "Solution Proposal", uni: "u2", partner: "p4", budget: 600000 },
         { stage: "Implementation", uni: "u1", partner: "p6", budget: 2400000 },
-        { stage: "Completed", uni: "u4", partner: "p8", budget: 1500000, impact: { people: 8900, villages: 12, savings: 3400000, jobs: 40, env: "60 stops retrofitted for level boarding" }, ip: { patents: 1, papers: 2, startups: 0, tech: 1 } },
+        { stage: "Completed", uni: "u1", partner: "p8", budget: 1500000, impact: { people: 8900, villages: 12, savings: 3400000, jobs: 40, env: "60 stops retrofitted for level boarding" }, ip: { patents: 1, papers: 2, startups: 0, tech: 1 } },
         { stage: "Completed", uni: "u2", partner: "p6", budget: 700000, impact: { people: 3100, villages: 7, savings: 1900000, jobs: 62, env: "Direct market access for 7 cooperatives" }, ip: { patents: 0, papers: 1, startups: 1, tech: 1 } },
         { stage: "Completed", uni: "u5", partner: "p1", budget: 480000, impact: { people: 2600, villages: 4, savings: 620000, jobs: 8, env: "2 km solar street lighting, 14 t CO2e avoided/yr" }, ip: { patents: 0, papers: 1, startups: 0, tech: 1 } },
       ];
+      const seen = {};
       seedRefs.forEach((ch, i) => {
         const cfg = configs[i];
-        const team = STUDENTS.filter((s) => s.uni === cfg.uni).slice(0, 4).map((s) => ({ name: s.name, dept: s.dept, role: "Team member" }));
+        const nth = seen[cfg.uni] = (seen[cfg.uni] || 0) + 1;
+        const pool = STUDENTS.filter((s) => s.uni === cfg.uni);
+        const off = pool.length > 4 ? ((nth - 1) * 2) % (pool.length - 3) : 0;
+        const team = pool.slice(off, off + 4).map((s) => ({ name: s.name, dept: s.dept, role: "Team member" }));
+        const facs = FACULTY.filter((f) => f.uni === cfg.uni);
         built.push(seedProject(ch, cfg.uni, {
           stage: cfg.stage, partner: cfg.partner, budget: cfg.budget,
-          faculty: FACULTY.find((f) => f.uni === cfg.uni)?.name,
+          faculty: (facs[(nth - 1) % Math.max(1, facs.length)] || facs[0])?.name,
           team, impact: cfg.impact, ip: cfg.ip,
           milestones: [
             { name: "Field survey complete", due: "Week 3", done: true },
@@ -565,6 +572,7 @@ export default function Samadhan() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [pendingAlerts, setPendingAlerts] = useState([]);   // challenge ids awaiting authority acknowledgement
 
   const tick = useCallback((i) => setDemoDone((d) => (d.has(i) ? d : new Set(d).add(i))), []);
   const notify = useCallback((text, tone = "indigo") => {
@@ -634,7 +642,11 @@ export default function Samadhan() {
 
   const go = (v, opts = {}) => { setView(v); if (opts.id !== undefined) setOpenId(opts.id); if (opts.pid !== undefined) setOpenProject(opts.pid); window.scrollTo(0, 0); };
 
-  const ctx = { role, challenges, projects, projectFor, updateProject, updateChallenge, setChallenges, setProjects, notify, tick, go, openId, openProject };
+  const raiseAlert = useCallback((id) => setPendingAlerts((a) => (a.includes(id) ? a : [...a, id])), []);
+  const clearAlert = useCallback((id) => setPendingAlerts((a) => a.filter((x) => x !== id)), []);
+  const alertChallenge = role?.id === "admin" ? challenges.find((c) => c.id === pendingAlerts[0]) : null;
+
+  const ctx = { role, challenges, projects, projectFor, updateProject, updateChallenge, setChallenges, setProjects, notify, tick, go, openId, openProject, raiseAlert };
 
   if (!role) return <SignIn onPick={(r) => { setRole(r); tick(0); setView(r.id === "citizen" ? "home" : r.id === "admin" ? "admin" : r.id === "industry" ? "market" : "university"); }} />;
 
@@ -653,6 +665,13 @@ export default function Samadhan() {
         {view === "analytics" && <Analytics {...ctx} />}
       </main>
       <DemoGuide done={demoDone} open={guideOpen} setOpen={setGuideOpen} />
+      {alertChallenge && (
+        <AuthorityAlert
+          challenge={alertChallenge}
+          onReview={() => { clearAlert(alertChallenge.id); go("admin"); }}
+          onDismiss={() => clearAlert(alertChallenge.id)}
+        />
+      )}
       <div className="fixed bottom-4 left-4 z-50 space-y-2">
         {toasts.map((t) => (
           <div key={t.id} className="flex max-w-sm items-start gap-2 rounded-lg bg-slate-900 px-3.5 py-2.5 text-sm text-white shadow-lg">
@@ -660,6 +679,70 @@ export default function Samadhan() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+
+/* --------------------- incoming report alert (authority) ------------------ */
+
+function AuthorityAlert({ challenge, onReview, onDismiss }) {
+  const c = challenge;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+      style={{ backgroundColor: "rgba(15,23,42,0.45)" }}>
+      <Card className="w-full max-w-lg overflow-hidden p-0 shadow-2xl">
+        <div className="flex items-start gap-3 border-b border-slate-200 bg-rose-50 px-5 py-4">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-600">
+            <Bell size={17} className="text-white" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-rose-900">New citizen report received</p>
+            <p className="mt-0.5 text-xs text-rose-700">
+              District Validation Cell &middot; Gandhinagar &middot; awaiting your review
+            </p>
+          </div>
+          <button onClick={onDismiss} className="rounded-md p-1 text-slate-400 hover:bg-white hover:text-slate-700">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <Badge tone="indigo">{c.ai?.sector || c.sector}</Badge>
+            <Badge tone={(c.ai?.priority || 0) >= 75 ? "rose" : (c.ai?.priority || 0) >= 50 ? "amber" : "slate"}>
+              Priority {c.ai?.priority ?? "\u2014"}
+            </Badge>
+            <Badge tone="slate">Impact {c.ai?.impact ?? "\u2014"}</Badge>
+          </div>
+          <p className="text-base font-semibold leading-snug text-slate-900">{c.title}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+            {c.description.length > 190 ? c.description.slice(0, 190).trim() + "\u2026" : c.description}
+          </p>
+
+          <div className="mt-3.5 grid grid-cols-3 gap-3 rounded-lg bg-slate-50 px-3.5 py-3">
+            <div>
+              <p className="text-xs text-slate-500">Location</p>
+              <p className="mt-0.5 text-sm font-medium text-slate-800">{c.district}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">People affected</p>
+              <p className="mt-0.5 text-sm font-medium text-slate-800">
+                {Number(c.affected || 0).toLocaleString("en-IN")}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Reported by</p>
+              <p className="mt-0.5 text-sm font-medium text-slate-800">Citizen</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+          <Btn variant="outline" size="sm" onClick={onDismiss}>Later</Btn>
+          <Btn size="sm" onClick={onReview}><ShieldCheck size={14} /> Open validation queue</Btn>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -893,7 +976,7 @@ function Landing({ go, challenges, projects }) {
 
 /* ----------------------------- submit challenge --------------------------- */
 
-function SubmitChallenge({ challenges, setChallenges, notify, tick, go }) {
+function SubmitChallenge({ challenges, setChallenges, notify, tick, go, raiseAlert }) {
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -906,12 +989,12 @@ function SubmitChallenge({ challenges, setChallenges, notify, tick, go }) {
 
   const fillDemo = () => {
     setF({
-      title: "Village handpumps dry for four months a year",
-      description: "Seven hamlets in the block rely on three handpumps that stop yielding from February to May. Groundwater has fallen below 220 metres. Families walk 2.5 km to a canal outlet, and the water is not treated. Tanker supply arrives twice a week and is not enough for livestock.",
-      sector: "auto", subSector: "Drinking water supply", region: "GJ", district: "Banaskantha",
+      title: "Raysan ward handpumps dry for four months a year",
+      description: "Three handpumps serving the older part of Raysan stop yielding from February to May. Groundwater has fallen below 220 metres as plot development cut off the recharge channels. Families walk 2 km to the nearest working connection and tanker supply arrives twice a week, which is not enough for households and livestock together.",
+      sector: "auto", subSector: "Drinking water supply", region: "GJ", district: "Gandhinagar",
       affected: "6200", severity: 5, urgency: 5,
       expectedOutcome: "A community-managed supply that holds through the dry season without tankers.",
-      priorAttempts: "Two deepening attempts in 2023 failed within a season.",
+      priorAttempts: "Two borewell deepening attempts in 2023 failed within a season.",
       evidence: [{ type: "image", name: "handpump-feb.jpg" }, { type: "image", name: "walk-route.jpg" }, { type: "audio", name: "sarpanch-statement.m4a" }],
       sdgs: [6, 11],
     });
@@ -935,7 +1018,8 @@ function SubmitChallenge({ challenges, setChallenges, notify, tick, go }) {
       sdgs: f.sdgs.length ? f.sdgs : result.sdgs,
     };
     setChallenges((cs) => [c, ...cs]);
-    notify("Challenge submitted. It is now in the district validation queue.");
+    raiseAlert(c.id);
+    notify("Challenge submitted. The district validation cell has been alerted.");
     go("challenge", { id: c.id });
   };
 
@@ -1363,9 +1447,9 @@ function ChallengeDetail({ challenges, openId, go, projectFor, role, updateChall
             const pr = seedProject(c, "u1", { faculty: "Dr. Anjali Mehta" });
             setProjects((ps) => [...ps, pr]);
             updateChallenge(c.id, { status: "Assigned", projectId: pr.id, assignedUni: "u1" });
-            notify("IIT Gandhinagar accepted the challenge"); tick(9);
+            notify("PDEU accepted the challenge"); tick(9);
             go("project", { pid: pr.id });
-          }}><GraduationCap size={15} /> Accept on behalf of IIT Gandhinagar</Btn>
+          }}><GraduationCap size={15} /> Accept on behalf of PDEU</Btn>
         </Card>
       )}
     </div>
