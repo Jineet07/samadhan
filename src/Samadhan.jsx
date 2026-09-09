@@ -193,6 +193,57 @@ const buildSeedChallenge = (row) => {
 
 
 
+
+// Audio is small enough to keep: a 30 s voice note is a few hundred KB, so it
+// survives a reload and plays back for the validator.
+const AUDIO_MAX_BYTES = 4 * 1024 * 1024;
+const readAudioFile = (file) =>
+  new Promise((resolve, reject) => {
+    if (file.size > AUDIO_MAX_BYTES) return reject(new Error("too large"));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = () => resolve({
+      type: "audio", name: file.name, url: reader.result, bytes: file.size,
+    });
+    reader.readAsDataURL(file);
+  });
+
+// Video is far too big to store (a short clip is 10-20 MB and base64 adds a
+// third, against a 5 MB cap). We keep a real poster frame pulled from the file
+// plus its duration, and a session-only URL so it still plays during the demo.
+const readVideoFile = (file) =>
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.muted = true;
+    v.playsInline = true;
+    const fail = () => { URL.revokeObjectURL(objectUrl); reject(new Error("decode failed")); };
+    v.onerror = fail;
+    v.onloadeddata = () => {
+      const grab = () => {
+        try {
+          const scale = Math.min(1, 640 / Math.max(v.videoWidth || 640, v.videoHeight || 360));
+          const cv = document.createElement("canvas");
+          cv.width = Math.round((v.videoWidth || 640) * scale);
+          cv.height = Math.round((v.videoHeight || 360) * scale);
+          cv.getContext("2d").drawImage(v, 0, 0, cv.width, cv.height);
+          resolve({
+            type: "video", name: file.name, bytes: file.size,
+            poster: cv.toDataURL("image/jpeg", 0.6),
+            seconds: Math.round(v.duration || 0),
+            playUrl: objectUrl,          // session only, gone after reload
+          });
+        } catch { fail(); }
+      };
+      if (v.duration && v.duration > 1) { v.onseeked = grab; v.currentTime = 0.5; }
+      else grab();
+    };
+    v.src = objectUrl;
+  });
+
+const fmtDur = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
 /* --------------------------- GPS location capture ------------------------- */
 // Approximate district centres, used only to suggest a region and district from
 // a detected fix. The raw coordinates are always what gets stored.
@@ -599,9 +650,9 @@ const buildSeedProjects = (cs) => {
       const built = [];
       const configs = [
         { stage: "Pilot", uni: "u1", partner: "p8", budget: 1800000 },
-        { stage: "Testing", uni: "u3", partner: "p7", budget: 900000 },
+        { stage: "Testing", uni: "u3", partner: null, budget: 900000 },
         { stage: "Prototype", uni: "u1", partner: "p1", budget: 1200000 },
-        { stage: "Solution Proposal", uni: "u2", partner: "p4", budget: 600000 },
+        { stage: "Solution Proposal", uni: "u2", partner: null, budget: 600000 },
         { stage: "Implementation", uni: "u1", partner: "p6", budget: 2400000 },
         { stage: "Completed", uni: "u1", partner: "p8", budget: 1500000, impact: { people: 8900, villages: 12, savings: 3400000, jobs: 40, env: "60 stops retrofitted for level boarding" }, ip: { patents: 1, papers: 2, startups: 0, tech: 1 } },
         { stage: "Completed", uni: "u2", partner: "p6", budget: 700000, impact: { people: 3100, villages: 7, savings: 1900000, jobs: 62, env: "Direct market access for 7 cooperatives" }, ip: { patents: 0, papers: 1, startups: 1, tech: 1 } },
@@ -718,7 +769,7 @@ export default function Samadhan() {
 
   const ctx = { role, challenges, projects, projectFor, updateProject, updateChallenge, setChallenges, setProjects, notify, tick, go, openId, openProject, raiseAlert };
 
-  if (!role) return <SignIn onPick={(r) => { setRole(r); tick(0); setView(r.id === "citizen" ? "home" : r.id === "admin" ? "admin" : r.id === "industry" ? "market" : "university"); }} />;
+  if (!role) return <SignIn onPick={(r) => { setRole(r); tick(0); setView(r.id === "citizen" ? "home" : r.id === "admin" ? "admin" : r.id === "industry" ? "market" : r.id === "student" ? "student" : "university"); }} />;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900" style={{ fontFamily: "ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif" }}>
@@ -730,6 +781,7 @@ export default function Samadhan() {
         {view === "challenge" && <ChallengeDetail {...ctx} />}
         {view === "admin" && <AdminQueue {...ctx} />}
         {view === "university" && <UniversityDash {...ctx} />}
+        {view === "student" && <StudentDash {...ctx} />}
         {view === "project" && <ProjectWorkspace {...ctx} />}
         {view === "market" && <IndustryMarket {...ctx} />}
         {view === "analytics" && <Analytics {...ctx} />}
@@ -883,7 +935,8 @@ function TopNav({ role, setRole, view, go, notifs, bellOpen, setBellOpen, resetD
     { id: "submit", label: "Report a challenge", icon: Send, roles: ["citizen", "admin"] },
     { id: "discover", label: "Challenges", icon: Search, roles: ["citizen", "admin", "faculty", "student", "industry"] },
     { id: "admin", label: "Validation queue", icon: ShieldCheck, roles: ["admin"] },
-    { id: "university", label: "University", icon: GraduationCap, roles: ["faculty", "student"] },
+    { id: "university", label: "University", icon: GraduationCap, roles: ["faculty"] },
+    { id: "student", label: "My work", icon: FlaskConical, roles: ["student"] },
     { id: "market", label: "Partnerships", icon: Handshake, roles: ["industry", "faculty"] },
     { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["citizen", "admin", "faculty", "student", "industry"] },
   ].filter((l) => l.roles.includes(role.id));
@@ -1052,6 +1105,7 @@ function SubmitChallenge({ challenges, setChallenges, notify, tick, go, raiseAle
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pickKind, setPickKind] = useState("image");
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState("");
   const fileRef = useRef(null);
@@ -1254,43 +1308,70 @@ function SubmitChallenge({ challenges, setChallenges, notify, tick, go, raiseAle
               <Upload size={20} className="mx-auto mb-2 text-slate-400" />
               <p className="text-sm text-slate-600">Attach your own photos of the problem</p>
               <p className="mt-1 text-xs text-slate-500">JPG or PNG, several at a time. Resized automatically.</p>
-              <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+              <input ref={fileRef} type="file" multiple className="hidden"
+                accept={pickKind === "image" ? "image/*" : pickKind === "video" ? "video/*" : "audio/*"}
                 onChange={async (e) => {
                   const files = [...(e.target.files || [])];
                   e.target.value = "";
                   if (!files.length) return;
                   setUploading(true);
                   try {
-                    const shots = [];
+                    const added = [];
                     for (const file of files) {
-                      try { shots.push(await readImageFile(file)); }
-                      catch { notify(`Could not read ${file.name}`, "rose"); }
+                      try {
+                        if (pickKind === "image") added.push(await readImageFile(file));
+                        else if (pickKind === "video") added.push(await readVideoFile(file));
+                        else added.push(await readAudioFile(file));
+                      } catch (err) {
+                        notify(err.message === "too large"
+                          ? `${file.name} is over 4 MB, record a shorter clip`
+                          : `Could not read ${file.name}`, "rose");
+                      }
                     }
-                    if (shots.length) {
-                      setF((x) => ({ ...x, evidence: [...x.evidence, ...shots] }));
-                      notify(`${shots.length} photo${shots.length > 1 ? "s" : ""} attached`);
+                    if (added.length) {
+                      setF((x) => ({ ...x, evidence: [...x.evidence, ...added] }));
+                      notify(`${added.length} ${pickKind} file${added.length > 1 ? "s" : ""} attached`);
                     }
                   } finally { setUploading(false); }
                 }} />
               <div className="mt-3 flex flex-wrap justify-center gap-2">
-                <Btn size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                  {uploading ? <><Loader2 size={12} className="animate-spin" /> Processing</> : <><Upload size={12} /> Choose photos</>}
-                </Btn>
-                {[["video", "walkthrough.mp4"], ["audio", "resident-statement.m4a"], ["doc", "panchayat-letter.pdf"]].map(([t, n]) => (
-                  <Btn key={t} size="sm" variant="outline" onClick={() => { set("evidence", [...f.evidence, { type: t, name: n }]); notify(`${n} attached`); }}>
-                    <Plus size={12} /> {t}
+                {[["image", "Photos", Upload], ["video", "Video", Beaker], ["audio", "Audio", Bell]].map(([k, label, Icon]) => (
+                  <Btn key={k} size="sm" variant={k === "image" ? "primary" : "outline"} disabled={uploading}
+                    onClick={() => { setPickKind(k); setTimeout(() => fileRef.current?.click(), 0); }}>
+                    {uploading && pickKind === k
+                      ? <><Loader2 size={12} className="animate-spin" /> Processing</>
+                      : <><Icon size={12} /> {label}</>}
                   </Btn>
                 ))}
+                <Btn size="sm" variant="outline"
+                  onClick={() => { set("evidence", [...f.evidence, { type: "doc", name: "panchayat-letter.pdf" }]); notify("Document attached"); }}>
+                  <Plus size={12} /> Document
+                </Btn>
               </div>
+              <p className="mt-2.5 text-xs text-slate-400">
+                Video is kept as a still frame plus duration, so it stays under the storage limit.
+              </p>
             </div>
             {f.evidence.length > 0 && (
               <ul className="mt-3 space-y-1.5">
                 {f.evidence.map((e, i) => (
                   <li key={i} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
-                    {e.url
+                    {e.type === "image" && e.url
                       ? <img src={e.url} alt={e.name} className="h-9 w-9 shrink-0 rounded object-cover" />
+                      : e.type === "video" && e.poster
+                      ? <span className="relative block h-9 w-12 shrink-0 overflow-hidden rounded">
+                          <img src={e.poster} alt={e.name} className="h-full w-full object-cover" />
+                          <span className="absolute inset-0 flex items-center justify-center text-white"
+                            style={{ backgroundColor: "rgba(0,0,0,0.35)" }}>▶</span>
+                        </span>
                       : <FileText size={13} className="text-slate-400" />}
-                    <span className="flex-1 truncate">{e.name}</span>
+                    <span className="flex-1 truncate">
+                      {e.name}
+                      {e.type === "video" && e.seconds ? ` · ${fmtDur(e.seconds)}` : ""}
+                    </span>
+                    {e.type === "audio" && e.url && (
+                      <audio controls src={e.url} className="h-7" style={{ maxWidth: "170px" }} />
+                    )}
                     <button onClick={() => set("evidence", f.evidence.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-600"><X size={12} /></button>
                   </li>
                 ))}
@@ -1598,17 +1679,45 @@ function ChallengeDetail({ challenges, openId, go, projectFor, role, updateChall
               )}
               <span className="flex items-center gap-1"><FileText size={12} />{(c.evidence || []).length} evidence file(s)</span>
             </div>
-            {(c.evidence || []).some((e) => e.url) && (
+            {(c.evidence || []).some((e) => e.url || e.poster) && (
               <div className="mt-3.5">
-                <p className="mb-1.5 text-xs font-medium text-slate-500">Photos submitted by the citizen</p>
-                <div className="flex flex-wrap gap-2">
-                  {(c.evidence || []).filter((e) => e.url).map((e, i) => (
-                    <a key={i} href={e.url} target="_blank" rel="noreferrer" title={e.name}
+                <p className="mb-1.5 text-xs font-medium text-slate-500">Evidence submitted by the citizen</p>
+                <div className="flex flex-wrap items-start gap-2">
+                  {(c.evidence || []).filter((e) => e.type === "image" && e.url).map((e, i) => (
+                    <a key={"i" + i} href={e.url} target="_blank" rel="noreferrer" title={e.name}
                       className="block overflow-hidden rounded-lg border border-slate-200 hover:border-indigo-400">
                       <img src={e.url} alt={e.name} className="h-24 w-32 object-cover" />
                     </a>
                   ))}
+                  {(c.evidence || []).filter((e) => e.type === "video" && e.poster).map((e, i) => (
+                    <div key={"v" + i} className="overflow-hidden rounded-lg border border-slate-200">
+                      {e.playUrl ? (
+                        <video src={e.playUrl} poster={e.poster} controls className="h-24 w-32 bg-black object-cover" />
+                      ) : (
+                        <div className="relative h-24 w-32">
+                          <img src={e.poster} alt={e.name} className="h-full w-full object-cover" />
+                          <div className="absolute inset-0 flex items-center justify-center px-1 text-center text-xs text-white"
+                            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+                            Still frame only
+                          </div>
+                        </div>
+                      )}
+                      <p className="truncate px-1.5 py-1 text-xs text-slate-500" style={{ maxWidth: "8rem" }}>
+                        {e.seconds ? fmtDur(e.seconds) : "video"}
+                      </p>
+                    </div>
+                  ))}
                 </div>
+                {(c.evidence || []).some((e) => e.type === "audio" && e.url) && (
+                  <div className="mt-2.5 space-y-1.5">
+                    {(c.evidence || []).filter((e) => e.type === "audio" && e.url).map((e, i) => (
+                      <div key={"a" + i} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                        <span className="truncate text-xs text-slate-600" style={{ maxWidth: "14rem" }}>{e.name}</span>
+                        <audio controls src={e.url} className="h-8" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1810,6 +1919,135 @@ function UniversityDash({ challenges, projects, go, setProjects, updateChallenge
                 <ChevronRight size={16} className="text-slate-400" />
               </button>
             ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+
+/* ---------------------------- student dashboard --------------------------- */
+
+// The signed-in student. Faculty see the institutional view; a student sees only
+// the projects they are actually on, plus positions they could join.
+const ME_STUDENT = STUDENTS[0];
+
+function StudentDash({ projects, challenges, setProjects, go, notify }) {
+  const uni = UNIVERSITIES.find((u) => u.id === ME_STUDENT.uni);
+  const onTeam = (p) => p.team.some((t) => t.name === ME_STUDENT.name);
+  const mine = projects.filter((p) => p.uni === ME_STUDENT.uni && onTeam(p));
+  const openings = projects.filter(
+    (p) => p.uni === ME_STUDENT.uni && !onTeam(p) && p.stage !== "Completed" && p.team.length < 6
+  );
+  const myTasks = mine.flatMap((p) =>
+    (p.tasks || []).filter((t) => t.owner === ME_STUDENT.name).map((t) => ({ ...t, project: p.title, pid: p.id }))
+  );
+
+  const join = (p) => {
+    setProjects((ps) => ps.map((x) => x.id === p.id
+      ? { ...x, team: [...x.team, { name: ME_STUDENT.name, dept: ME_STUDENT.dept, role: "Team member" }] }
+      : x));
+    notify(`You joined "${p.title.slice(0, 40)}..."`);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{ME_STUDENT.name}</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {ME_STUDENT.dept} · Year {ME_STUDENT.year} · {uni?.name}
+          </p>
+        </div>
+        <Badge tone="indigo">Student</Badge>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Stat label="Projects joined" value={mine.length} icon={Rocket} />
+        <Stat label="Open positions" value={openings.length} icon={UserPlus} />
+        <Stat label="Tasks assigned" value={myTasks.length} icon={Layers} />
+        <Stat label="Teammates" value={new Set(mine.flatMap((p) => p.team.map((t) => t.name))).size} icon={Users} />
+      </div>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Your projects</h2>
+        {mine.length === 0 ? (
+          <Card className="p-8 text-center text-sm text-slate-500">
+            You are not on a team yet. Join one of the open positions below.
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {mine.map((p) => {
+              const c = challenges.find((x) => x.id === p.challengeId);
+              return (
+                <button key={p.id} onClick={() => go("project", { pid: p.id })}
+                  className="flex w-full items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-indigo-300">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{p.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {c?.district} · mentor {p.faculty || "unassigned"} · {p.team.length} members
+                    </p>
+                  </div>
+                  <Badge tone={p.stage === "Completed" ? "green" : "indigo"}>{p.stage}</Badge>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {myTasks.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold">Tasks assigned to you</h2>
+          <Card className="divide-y divide-slate-100 p-0">
+            {myTasks.map((t, i) => (
+              <button key={i} onClick={() => go("project", { pid: t.pid })}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
+                <CircleDot size={13} className="shrink-0 text-indigo-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm">{t.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">{t.project}</p>
+                </div>
+                <Badge tone="slate">{t.status}</Badge>
+              </button>
+            ))}
+          </Card>
+        </section>
+      )}
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Open positions at {uni?.name}</h2>
+        {openings.length === 0 ? (
+          <Card className="p-8 text-center text-sm text-slate-500">
+            No teams are recruiting right now.
+          </Card>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {openings.map((p) => {
+              const c = challenges.find((x) => x.id === p.challengeId);
+              const depts = [...new Set(p.team.map((t) => t.dept))];
+              return (
+                <Card key={p.id} className="p-4">
+                  <Badge tone="indigo">{c?.sector}</Badge>
+                  <p className="mt-1.5 text-sm font-semibold leading-snug">{p.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {c?.district} · stage {p.stage} · {p.team.length} of 6 filled
+                  </p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    Team so far: {depts.length ? depts.join(", ") : "no members yet"}.
+                    {depts.includes(ME_STUDENT.dept)
+                      ? " Your department is already represented."
+                      : ` Adds ${ME_STUDENT.dept} to the mix.`}
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Btn size="sm" onClick={() => join(p)}><UserPlus size={13} /> Join this team</Btn>
+                    <Btn size="sm" variant="outline" onClick={() => go("project", { pid: p.id })}>View project</Btn>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>
@@ -2280,6 +2518,13 @@ function ImpactTab({ p, c, updateProject, advance, notify, tick }) {
 
 /* ---------------------------- industry market ----------------------------- */
 
+const SUPPORT_TYPES = [
+  { id: "funding", short: "Funding", label: "Funding of \u20B912L", icon: TrendingUp, amount: 1200000 },
+  { id: "mentorship", short: "Mentorship", label: "Mentorship from two senior engineers", icon: Users, amount: 0 },
+  { id: "technology", short: "Technology", label: "Technology and component access", icon: Beaker, amount: 300000 },
+  { id: "infra", short: "Infrastructure", label: "Site access and pilot infrastructure", icon: Building2, amount: 500000 },
+];
+
 function IndustryMarket({ projects, challenges, updateProject, notify, tick, go }) {
   const me = PARTNERS[1];
   const open = projects.filter((p) => !p.partner && p.stage !== "Completed");
@@ -2312,14 +2557,55 @@ function IndustryMarket({ projects, challenges, updateProject, notify, tick, go 
                   <p className="mt-1.5 text-sm font-semibold leading-snug">{p.title}</p>
                   <p className="mt-1 text-xs text-slate-500">{uni?.name} · {c?.district} · {p.team.length} students · stage {p.stage}</p>
                   <p className="mt-2 text-xs text-slate-600">Fit: your {me.expertise[0]} capability maps to the required expertise on this challenge.</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Btn size="sm" onClick={() => {
-                      updateProject(p.id, { partner: me.id, budget: p.budget + 1200000 });
-                      notify(`${me.name} joined as industry partner with ₹12L support`); tick(12); tick(13);
-                    }}><Handshake size={13} /> Offer mentorship and funding</Btn>
-                    <Btn size="sm" variant="outline" onClick={() => go("project", { pid: p.id })}>Open project</Btn>
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-xs font-medium text-slate-700">Commit support</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SUPPORT_TYPES.map((st) => (
+                        <Btn key={st.id} size="sm" variant={st.id === "funding" ? "primary" : "outline"}
+                          onClick={() => {
+                            updateProject(p.id, {
+                              partner: me.id,
+                              budget: p.budget + st.amount,
+                              support: st.label,
+                            });
+                            notify(`${me.name} committed ${st.label.toLowerCase()} to "${p.title.slice(0, 32)}..."`);
+                            tick(12); tick(13);
+                          }}>
+                          <st.icon size={12} /> {st.short}
+                        </Btn>
+                      ))}
+                      <Btn size="sm" variant="ghost" onClick={() => go("project", { pid: p.id })}>Open project</Btn>
+                    </div>
                   </div>
                 </Card>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Your commitments</h2>
+        {projects.filter((p) => p.partner === me.id).length === 0 ? (
+          <Card className="p-8 text-center text-sm text-slate-500">
+            You have not backed a project yet. Commit support above to start a collaboration.
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {projects.filter((p) => p.partner === me.id).map((p) => {
+              const c = challenges.find((x) => x.id === p.challengeId);
+              return (
+                <button key={p.id} onClick={() => go("project", { pid: p.id })}
+                  className="flex w-full items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-indigo-300">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{p.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {c?.district} · {p.support || "Funding and mentorship"} · budget {"\u20B9"}{(p.budget / 100000).toFixed(1)}L
+                    </p>
+                  </div>
+                  <Badge tone={p.stage === "Completed" ? "green" : "indigo"}>{p.stage}</Badge>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </button>
               );
             })}
           </div>
